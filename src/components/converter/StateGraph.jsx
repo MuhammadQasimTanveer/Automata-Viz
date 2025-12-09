@@ -11,8 +11,10 @@ export const StateGraph = ({ automaton, title }) => {
 
   useEffect(() => 
   {
+    //graph will only draw when above are true other wise it returns
     if (!automaton || !svgRef.current) return;
 
+    // Only create graph if it doesn't exist
     d3.select(svgRef.current).selectAll('*').remove();
 
     const { states, startState, finalStates, transitions, deadState } = automaton;
@@ -21,22 +23,23 @@ export const StateGraph = ({ automaton, title }) => {
     const width = containerWidth;
     const height = 600;
 
-    //canvas
+    //canvas, //remove the old graph(svg) to draw again
     const svg = d3.select(svgRef.current)
       .attr('width', width)
       .attr('height', height);
 
+    // Add zoom behavior
     const zoom = d3.zoom()
       .scaleExtent([0.3, 3])
       .on('zoom', (event) => {
-        g.attr('transform', event.transform);
+        g.attr('transform', event.transform);  //nodes and edges move/scale with zoom
       });
 
     svg.call(zoom);
 
     const g = svg.append('g'); //g group element, inwhich all nodes & edges append
 
-    // Calculate positions
+    // Create only nodes with fixed positions
     const nodes = states.map(state => ({
       id: state,
       isStart: state === startState,
@@ -45,7 +48,7 @@ export const StateGraph = ({ automaton, title }) => {
     }));
 
     // Create links
-    const links = [];
+    const links = [];      //store edges
     const edgeLabels = new Map();         //label of each state
 
     //traverse the transition of each state, ifmany transitionson same symbo, push to edgelabel
@@ -55,9 +58,12 @@ export const StateGraph = ({ automaton, title }) => {
         const targetList = Array.isArray(targets) ? targets : [targets];
         targetList.forEach(target => {
           const key = `${state}-${target}`;
+           //if edge exists, add its all multiple symbols to array
           if (edgeLabels.has(key)) {
             edgeLabels.get(key).push(symbol);
-          } else {
+          } 
+          //if there is no edge create it
+          else {
             edgeLabels.set(key, [symbol]);
             links.push({
               source: state,
@@ -79,10 +85,10 @@ export const StateGraph = ({ automaton, title }) => {
     const simulation = d3.forceSimulation(nodes)
       .force('link', d3.forceLink(links)
         .id(d => d.id)
-        .distance(150))
-      .force('charge', d3.forceManyBody().strength(-800))
-      .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('collision', d3.forceCollide().radius(70))
+        .distance(150))    //length of edge
+      .force('charge', d3.forceManyBody().strength(-800))    //how far node is from another
+      .force('center', d3.forceCenter(width / 2, height / 2))   //centered graph
+      .force('collision', d3.forceCollide().radius(70))  //nodes not collide
       .force('x', d3.forceX(width / 2).strength(0.1))
       .force('y', d3.forceY(height / 2).strength(0.1));
 
@@ -91,26 +97,26 @@ export const StateGraph = ({ automaton, title }) => {
       .data(['arrow'])
       .enter().append('marker')
       .attr('id', 'arrow')
-      .attr('viewBox', '0 -5 10 10')
+      .attr('viewBox', '0 -5 10 10')   //set coordinates
       .attr('refX', 45)
       .attr('refY', 0)
       .attr('markerWidth', 6)
       .attr('markerHeight', 6)
-      .attr('orient', 'auto')
+      .attr('orient', 'auto')       //auto direction give to arrow that is same as path
       .append('path')
-      .attr('d', 'M0,-5L10,0L0,5')
+      .attr('d', 'M0,-5L10,0L0,5')         //create triangle as actual marker
       .attr('fill', '#64748b');
 
     // Draw links
     const link = g.append('g')
-      .selectAll('path')
+      .selectAll('path')   //create visual link between nodes
       .data(links)
-      .enter().append('path')
+      .enter().append('path')   //create path
       .attr('class', 'edge')
       .attr('fill', 'none')
       .attr('stroke', '#64748b')
       .attr('stroke-width', 2)
-      .attr('marker-end', d => d.isSelfLoop ? '' : 'url(#arrow)');
+      .attr('marker-end', d => d.isSelfLoop ? '' : 'url(#arrow)');  //if no self loop, creatw link
 
     // Edge labels
     const linkLabelGroup = g.append('g');
@@ -160,7 +166,7 @@ export const StateGraph = ({ automaton, title }) => {
     // Double circle for final states
     node.filter(d => d.isFinal)
       .append('circle')
-      .attr('r', 40)
+      .attr('r', 40)   
       .attr('fill', 'none')
       .attr('stroke', d => {
         const colors = getStateColor(d.isStart, d.isFinal, d.isDead);
@@ -168,7 +174,7 @@ export const StateGraph = ({ automaton, title }) => {
       })
       .attr('stroke-width', 2);
 
-    // Start state arrow
+    // show an arrow to Start state
     node.filter(d => d.isStart)
       .append('path')
       .attr('d', 'M-50,0 L-35,0')
@@ -191,13 +197,14 @@ export const StateGraph = ({ automaton, title }) => {
       })
       .text(d => d.id);
 
-    // Simulation tick
+    // show upadted positions on screen continuously
     simulation.on('tick', () => {
       nodes.forEach(d => {
         d.x = Math.max(60, Math.min(width - 60, d.x));
         d.y = Math.max(60, Math.min(height - 60, d.y));
       });
 
+      //decide which link is self ornormal
       link.attr('d', d => {
         if (d.isSelfLoop) {
           const x = d.source.x;
@@ -208,12 +215,14 @@ export const StateGraph = ({ automaton, title }) => {
         }
       });
 
+       //decide which link is self or normal
       linkLabels.attr('transform', d => {
         const x = d.isSelfLoop ? d.source.x + 25 : (d.source.x + d.target.x) / 2;
         const y = d.isSelfLoop ? d.source.y - 50 : (d.source.y + d.target.y) / 2;
         return `translate(${x},${y})`;
       });
 
+       //give reactangle box shape to edge label
       linkLabels.select('text').each(function() {
         const bbox = this.getBBox();
         d3.select(this.previousSibling)
@@ -223,6 +232,7 @@ export const StateGraph = ({ automaton, title }) => {
           .attr('height', bbox.height + 4);
       });
 
+      //continuously update node positions
       node.attr('transform', d => `translate(${d.x},${d.y})`);
     });
 
@@ -257,10 +267,7 @@ export const StateGraph = ({ automaton, title }) => {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="w-full"
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full"
     >
       <Card>
         <CardHeader>

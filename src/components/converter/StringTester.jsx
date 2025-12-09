@@ -33,6 +33,7 @@ export const StringTester = () => {
 
   // Initial graph setup (only once)
   useEffect(() => {
+    //graph will only draw when above are true other wise it returns
     if (!testResult || !testResult.steps || !svgRef.current) return;
 
     // Only create graph if it doesn't exist
@@ -43,6 +44,7 @@ export const StringTester = () => {
     const width = containerWidth;
     const height = 400;
 
+    //remove the old graph(svg) to draw again
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
 
@@ -50,34 +52,39 @@ export const StringTester = () => {
     const zoom = d3.zoom()
       .scaleExtent([0.5, 3])
       .on('zoom', (event) => {
-        g.attr('transform', event.transform);
+        g.attr('transform', event.transform);  //nodes and edges move/scale with zoom
       });
 
     svg.call(zoom);
 
-    const g = svg.append('g');
+    const g = svg.append('g');   //make nodes and edges together as one group
 
-    // Create nodes with fixed positions
+    // Create only nodes with fixed positions
     const nodes = states.map((state, index) => ({
       id: state,
       isStart: state === startState,
       isFinal: finalStates.includes(state),
       isDead: state === deadState,
-      x: (width / (states.length + 1)) * (index + 1),
+      x: (width / (states.length + 1)) * (index + 1),  //make nodes evenly horizontal spaced
       y: height / 2,
     }));
 
     // Create links
-    const links = [];
-    const edgeLabels = new Map();
+    const links = [];   //store edges
+    const edgeLabels = new Map();     //store edges if anyedge has many symbols
 
+    //make edges betwen nodes
     states.forEach(state => {
       const stateTrans = transitions[state] || {};
       Object.entries(stateTrans).forEach(([symbol, target]) => {
         const key = `${state}-${target}`;
-        if (edgeLabels.has(key)) {
+        //if edge exists, add its all multiple symbols to array
+        if (edgeLabels.has(key)) 
+          {
           edgeLabels.get(key).push(symbol);
-        } else {
+        } 
+        //if there is no edge create it
+        else {
           edgeLabels.set(key, [symbol]);
           links.push({
             source: state,
@@ -96,40 +103,40 @@ export const StringTester = () => {
 
     // Run simulation to get better positions
     const simulation = d3.forceSimulation(nodes)
-      .force('link', d3.forceLink(links).id(d => d.id).distance(150))
-      .force('charge', d3.forceManyBody().strength(-800))
-      .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('collision', d3.forceCollide().radius(60))
-      .force('x', d3.forceX(width / 2).strength(0.1))
+      .force('link', d3.forceLink(links).id(d => d.id).distance(150))   //length of edge
+      .force('charge', d3.forceManyBody().strength(-800))             //how far node is from another
+      .force('center', d3.forceCenter(width / 2, height / 2))    //centered graph
+      .force('collision', d3.forceCollide().radius(60))      //nodes not collide
+      .force('x', d3.forceX(width / 2).strength(0.1)) 
       .force('y', d3.forceY(height / 2).strength(0.1));
 
-    simulationRef.current = simulation;
+    simulationRef.current = simulation;    //store this ref for later use(drag, zoom)
 
     // Arrow markers
     svg.append('defs').selectAll('marker')
       .data(['arrow', 'arrow-active'])
       .enter().append('marker')
       .attr('id', d => d)
-      .attr('viewBox', '0 -5 10 10')
+      .attr('viewBox', '0 -5 10 10')        //set coordinats
       .attr('refX', 45)
       .attr('refY', 0)
       .attr('markerWidth', 6)
       .attr('markerHeight', 6)
-      .attr('orient', 'auto')
+      .attr('orient', 'auto')         //auto direction give to arrow that is same as path
       .append('path')
-      .attr('d', 'M0,-5L10,0L0,5')
+      .attr('d', 'M0,-5L10,0L0,5')        //create triangle as actual marker
       .attr('fill', d => d === 'arrow-active' ? '#6366f1' : '#64748b');
 
     // Draw links
     const link = g.append('g')
-      .selectAll('path')
+      .selectAll('path')          //create visual link between nodes
       .data(links)
-      .enter().append('path')
-      .attr('class', 'edge')
+      .enter().append('path')    //create path
+      .attr('class', 'edge')  
       .attr('fill', 'none')
       .attr('stroke', '#64748b')
       .attr('stroke-width', 2)
-      .attr('marker-end', d => d.isSelfLoop ? '' : 'url(#arrow)');
+      .attr('marker-end', d => d.isSelfLoop ? '' : 'url(#arrow)');   //if no self loop, creatw link
 
     // Edge labels
     const linkLabelGroup = g.append('g');
@@ -150,7 +157,7 @@ export const StringTester = () => {
       .attr('fill', '#1e293b')
       .text(d => d.symbols.join(', '));
 
-    // Draw nodes
+    // make each nodes as one container to that it is dragable, or zoom
     const node = g.append('g')
       .selectAll('g')
       .data(nodes)
@@ -159,12 +166,12 @@ export const StringTester = () => {
       .call(d3.drag()
         .on('start', dragstarted)
         .on('drag', dragged)
-        .on('end', dragended));
+        .on('end', dragended)); 
 
-    // Node circles
+      // draw circle for each Node
     node.append('circle')
       .attr('class', 'node-circle')
-      .attr('r', 30)
+      .attr('r', 30)  //radius
       .attr('fill', d => {
         const colors = getStateColor(d.isStart, d.isFinal, d.isDead);
         return colors.bg;
@@ -187,7 +194,7 @@ export const StringTester = () => {
       })
       .attr('stroke-width', 2);
 
-    // Start arrow
+    // show an arrow to Start state
     node.filter(d => d.isStart)
       .append('path')
       .attr('d', 'M-45,0 L-30,0')
@@ -211,13 +218,14 @@ export const StringTester = () => {
       })
       .text(d => d.id);
 
-    // Update positions on tick
+    // show upadted positions on screen continuously
     simulation.on('tick', () => {
       nodes.forEach(d => {
         d.x = Math.max(50, Math.min(width - 50, d.x));
         d.y = Math.max(50, Math.min(height - 50, d.y));
       });
 
+        //decide which link is self ornormal
       link.attr('d', d => {
         if (d.isSelfLoop) {
           return `M ${d.source.x},${d.source.y - 30} A 20,20 0 1,1 ${d.source.x + 30},${d.source.y}`;
@@ -226,12 +234,14 @@ export const StringTester = () => {
         }
       });
 
+      //decide which link is self or normal
       linkLabels.attr('transform', d => {
         const x = d.isSelfLoop ? d.source.x + 20 : (d.source.x + d.target.x) / 2;
         const y = d.isSelfLoop ? d.source.y - 45 : (d.source.y + d.target.y) / 2;
         return `translate(${x},${y})`;
       });
 
+      //give reactangle box shape to edge label
       linkLabels.select('text').each(function () {
         const bbox = this.getBBox();
         d3.select(this.previousSibling)
@@ -241,6 +251,7 @@ export const StringTester = () => {
           .attr('height', bbox.height + 4);
       });
 
+      //continuously update node positions
       node.attr('transform', d => `translate(${d.x},${d.y})`);
     });
 
@@ -346,17 +357,13 @@ export const StringTester = () => {
     <div className="space-y-6">
       {/* Input Form */}
       <Card>
-        <CardHeader>
-          <CardTitle>Test String Input</CardTitle>
-        </CardHeader>
+        <CardHeader> <CardTitle>Test String Input</CardTitle> </CardHeader>
         <CardContent>
           <form onSubmit={handleTest} className="space-y-4">
             <div>
               <Input
-                value={inputString}
-                onChange={(e) => setInputString(e.target.value)}
-                placeholder="Enter a string to test"
-                className="font-mono"
+                value={inputString} onChange={(e) => setInputString(e.target.value)}
+                placeholder="Enter a string to test" className="font-mono"
               />
               <p className="mt-2 text-sm text-slate-600">
                 <strong>Alphabet:</strong> {minimizedDFA.alphabet.join(', ')}
@@ -376,10 +383,7 @@ export const StringTester = () => {
       {/* Test Result */}
       <AnimatePresence>
         {testResult && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
           >
             <Card>
               <CardHeader>
@@ -434,7 +438,6 @@ export const StringTester = () => {
                   </div>
                 </div>
 
-                {/* Graph Simulation */}
                 {testResult.steps && testResult.steps.length > 0 && (
                   <div className="mt-6">
                     <div className="flex items-center justify-between mb-4">
@@ -444,16 +447,14 @@ export const StringTester = () => {
                           Step {currentStep + 1} / {testResult.steps.length}
                         </span>
                         <Button
-                          variant="outline"
-                          size="sm"
+                          variant="outline" size="sm"
                           onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
                           disabled={currentStep === 0}
                         >
                           <ChevronLeft className="w-4 h-4" />
                         </Button>
                         <Button
-                          variant="outline"
-                          size="sm"
+                          variant="outline" size="sm"
                           onClick={() => setCurrentStep(Math.min(testResult.steps.length - 1, currentStep + 1))}
                           disabled={currentStep === testResult.steps.length - 1}
                         >
@@ -473,7 +474,6 @@ export const StringTester = () => {
                       ></svg>
                     </div>
 
-                    {/* Current Step Info */}
                     <div className="bg-indigo-50 rounded-lg p-4 mb-4">
                       <div className="grid grid-cols-3 gap-4 text-center">
                         <div>
@@ -497,7 +497,6 @@ export const StringTester = () => {
                       </div>
                     </div>
 
-                    {/* Timeline */}
                     <div className="overflow-x-auto pb-4">
                       <div className="flex items-center gap-2 min-w-max">
                         {testResult.steps.map((step, index) => (
@@ -530,7 +529,6 @@ export const StringTester = () => {
         )}
       </AnimatePresence>
 
-      {/* Examples */}
       <Card>
         <CardHeader>
           <CardTitle>Try Examples</CardTitle>
@@ -539,8 +537,7 @@ export const StringTester = () => {
           <div className="flex flex-wrap gap-2">
             {['npn', 'npoo', 'oop', 'np', 'ooppp', 'pppp', ''].map((ex) => (
               <button
-                key={ex || 'empty'}
-                onClick={() => setInputString(ex)}
+                key={ex || 'empty'} onClick={() => setInputString(ex)}
                 className="px-4 py-2 bg-slate-100 rounded-lg text-sm font-mono text-slate-700 hover:bg-indigo-100 hover:text-indigo-700 transition-colors"
               >
                 {ex || 'ε'}

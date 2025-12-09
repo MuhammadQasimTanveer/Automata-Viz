@@ -243,9 +243,9 @@ export const StateGraph = ({ automaton, title }) => {
       d.fy = null;
     }
 
-    window.graphZoomIn = () => svg.transition().call(zoom.scaleBy, 1.3);
-    window.graphZoomOut = () => svg.transition().call(zoom.scaleBy, 0.7);
-    window.graphZoomReset = () => svg.transition().call(zoom.transform, d3.zoomIdentity);
+    // window.graphZoomIn = () => svg.transition().call(zoom.scaleBy, 1.3);
+    // window.graphZoomOut = () => svg.transition().call(zoom.scaleBy, 0.7);
+    // window.graphZoomReset = () => svg.transition().call(zoom.transform, d3.zoomIdentity);
 
     return () => {
       simulation.stop();

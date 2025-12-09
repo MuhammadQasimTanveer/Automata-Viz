@@ -3,19 +3,20 @@ import * as d3 from 'd3';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
-import { CheckCircle, XCircle, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CheckCircle, XCircle, AlertCircle, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import useAutomataStore from '../../store/useAutomataStore';
 import { getStateColor } from '../../utils/formatters';
 
-export const StringTester = () => 
-  {
+export const StringTester = () => {
   const { minimizedDFA, testString } = useAutomataStore();
   const [inputString, setInputString] = useState('');
   const [testResult, setTestResult] = useState(null);
   const [currentStep, setCurrentStep] = useState(0);
   const svgRef = useRef(null);
   const containerRef = useRef(null);
+  const simulationRef = useRef(null);
+  const nodesDataRef = useRef(null);
 
   const handleTest = (e) => {
     e.preventDefault();
@@ -30,32 +31,40 @@ export const StringTester = () =>
     setCurrentStep(0);
   };
 
-  // Draw graph with simulation
+  // Initial graph setup (only once)
   useEffect(() => {
     if (!testResult || !testResult.steps || !svgRef.current) return;
 
-    d3.select(svgRef.current).selectAll('*').remove();
+    // Only create graph if it doesn't exist
+    if (nodesDataRef.current) return;
 
     const { states, startState, finalStates, transitions, deadState } = minimizedDFA;
-    const currentStateInStep = testResult.steps[currentStep]?.state;
-
     const containerWidth = containerRef.current?.clientWidth || 600;
     const width = containerWidth;
     const height = 400;
 
-    const svg = d3.select(svgRef.current)
-      .attr('width', width)
-      .attr('height', height);
+    const svg = d3.select(svgRef.current);
+    svg.selectAll('*').remove();
+
+    // Add zoom behavior
+    const zoom = d3.zoom()
+      .scaleExtent([0.5, 3])
+      .on('zoom', (event) => {
+        g.attr('transform', event.transform);
+      });
+
+    svg.call(zoom);
 
     const g = svg.append('g');
 
-    // Create nodes
-    const nodes = states.map(state => ({
+    // Create nodes with fixed positions
+    const nodes = states.map((state, index) => ({
       id: state,
       isStart: state === startState,
       isFinal: finalStates.includes(state),
       isDead: state === deadState,
-      isActive: state === currentStateInStep,
+      x: (width / (states.length + 1)) * (index + 1),
+      y: height / 2,
     }));
 
     // Create links
@@ -75,7 +84,6 @@ export const StringTester = () =>
             target: target,
             symbols: [symbol],
             isSelfLoop: state === target,
-            isActive: false
           });
         }
       });
@@ -86,23 +94,16 @@ export const StringTester = () =>
       link.symbols = edgeLabels.get(key);
     });
 
-    // Check which edge is active in current step
-    if (currentStep > 0 && currentStep < testResult.steps.length) {
-      const prevState = testResult.steps[currentStep - 1].state;
-      const currState = testResult.steps[currentStep].state;
-      links.forEach(link => {
-        if (link.source === prevState && link.target === currState) {
-          link.isActive = true;
-        }
-      });
-    }
-
-    // Force simulation
+    // Run simulation to get better positions
     const simulation = d3.forceSimulation(nodes)
-      .force('link', d3.forceLink(links).id(d => d.id).distance(120))
-      .force('charge', d3.forceManyBody().strength(-600))
+      .force('link', d3.forceLink(links).id(d => d.id).distance(150))
+      .force('charge', d3.forceManyBody().strength(-800))
       .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('collision', d3.forceCollide().radius(60));
+      .force('collision', d3.forceCollide().radius(60))
+      .force('x', d3.forceX(width / 2).strength(0.1))
+      .force('y', d3.forceY(height / 2).strength(0.1));
+
+    simulationRef.current = simulation;
 
     // Arrow markers
     svg.append('defs').selectAll('marker')
@@ -126,9 +127,9 @@ export const StringTester = () =>
       .enter().append('path')
       .attr('class', 'edge')
       .attr('fill', 'none')
-      .attr('stroke', d => d.isActive ? '#6366f1' : '#64748b')
-      .attr('stroke-width', d => d.isActive ? 4 : 2)
-      .attr('marker-end', d => d.isSelfLoop ? '' : (d.isActive ? 'url(#arrow-active)' : 'url(#arrow)'));
+      .attr('stroke', '#64748b')
+      .attr('stroke-width', 2)
+      .attr('marker-end', d => d.isSelfLoop ? '' : 'url(#arrow)');
 
     // Edge labels
     const linkLabelGroup = g.append('g');
@@ -154,31 +155,33 @@ export const StringTester = () =>
       .selectAll('g')
       .data(nodes)
       .enter().append('g')
-      .attr('class', 'node');
+      .attr('class', 'node')
+      .call(d3.drag()
+        .on('start', dragstarted)
+        .on('drag', dragged)
+        .on('end', dragended));
 
     // Node circles
     node.append('circle')
+      .attr('class', 'node-circle')
       .attr('r', 30)
       .attr('fill', d => {
-        if (d.isActive) return '#818cf8'; // Active state (purple/indigo)
         const colors = getStateColor(d.isStart, d.isFinal, d.isDead);
         return colors.bg;
       })
       .attr('stroke', d => {
-        if (d.isActive) return '#4f46e5';
         const colors = getStateColor(d.isStart, d.isFinal, d.isDead);
         return colors.border;
       })
-      .attr('stroke-width', d => d.isActive ? 4 : 3)
-      .style('filter', d => d.isActive ? 'drop-shadow(0 0 10px rgba(79, 70, 229, 0.8))' : 'none');
+      .attr('stroke-width', 3);
 
     // Double circle for final states
     node.filter(d => d.isFinal)
       .append('circle')
+      .attr('class', 'node-final-circle')
       .attr('r', 35)
       .attr('fill', 'none')
       .attr('stroke', d => {
-        if (d.isActive) return '#4f46e5';
         const colors = getStateColor(d.isStart, d.isFinal, d.isDead);
         return colors.border;
       })
@@ -197,18 +200,18 @@ export const StringTester = () =>
 
     // Node labels
     node.append('text')
+      .attr('class', 'node-text')
       .attr('text-anchor', 'middle')
       .attr('dy', '.35em')
       .attr('font-size', '14px')
       .attr('font-weight', 'bold')
       .attr('fill', d => {
-        if (d.isActive) return '#ffffff';
         const colors = getStateColor(d.isStart, d.isFinal, d.isDead);
         return colors.text;
       })
       .text(d => d.id);
 
-    // Update positions
+    // Update positions on tick
     simulation.on('tick', () => {
       nodes.forEach(d => {
         d.x = Math.max(50, Math.min(width - 50, d.x));
@@ -241,11 +244,103 @@ export const StringTester = () =>
       node.attr('transform', d => `translate(${d.x},${d.y})`);
     });
 
+    // Drag functions
+    function dragstarted(event, d) {
+      if (!event.active) simulation.alphaTarget(0.3).restart();
+      d.fx = d.x;
+      d.fy = d.y;
+    }
+
+    function dragged(event, d) {
+      d.fx = event.x;
+      d.fy = event.y;
+    }
+
+    function dragended(event, d) {
+      if (!event.active) simulation.alphaTarget(0);
+      // Keep position after drag
+      d.fx = d.x;
+      d.fy = d.y;
+    }
+
+    // Store nodes and links for color updates
+    nodesDataRef.current = { nodes, links, node, link, svg, zoom, g };
+
     return () => {
-      simulation.stop();
+      if (simulationRef.current) {
+        simulationRef.current.stop();
+      }
     };
 
-  }, [testResult, currentStep, minimizedDFA]);
+  }, [testResult, minimizedDFA]);
+
+  // Update only colors when step changes
+  useEffect(() => {
+    if (!testResult || !nodesDataRef.current) return;
+
+    const { nodes, links, node, link } = nodesDataRef.current;
+    const currentStateInStep = testResult.steps[currentStep]?.state;
+
+    // Update node colors
+    nodes.forEach(n => {
+      n.isActive = n.id === currentStateInStep;
+    });
+
+    // Update active links
+    let activeSource = null;
+    let activeTarget = null;
+    if (currentStep > 0 && currentStep < testResult.steps.length) {
+      activeSource = testResult.steps[currentStep - 1].state;
+      activeTarget = testResult.steps[currentStep].state;
+    }
+
+    links.forEach(l => {
+      l.isActive = (l.source.id === activeSource && l.target.id === activeTarget);
+    });
+
+    // Apply color changes
+    node.select('.node-circle')
+      .transition()
+      .duration(300)
+      .attr('fill', d => {
+        if (d.isActive) return '#818cf8';
+        const colors = getStateColor(d.isStart, d.isFinal, d.isDead);
+        return colors.bg;
+      })
+      .attr('stroke', d => {
+        if (d.isActive) return '#4f46e5';
+        const colors = getStateColor(d.isStart, d.isFinal, d.isDead);
+        return colors.border;
+      })
+      .attr('stroke-width', d => d.isActive ? 4 : 3)
+      .style('filter', d => d.isActive ? 'drop-shadow(0 0 10px rgba(79, 70, 229, 0.8))' : 'none');
+
+    node.select('.node-final-circle')
+      .transition()
+      .duration(300)
+      .attr('stroke', d => {
+        if (d.isActive) return '#4f46e5';
+        const colors = getStateColor(d.isStart, d.isFinal, d.isDead);
+        return colors.border;
+      });
+
+    node.select('.node-text')
+      .transition()
+      .duration(300)
+      .attr('fill', d => {
+        if (d.isActive) return '#ffffff';
+        const colors = getStateColor(d.isStart, d.isFinal, d.isDead);
+        return colors.text;
+      });
+
+    link
+      .transition()
+      .duration(300)
+      .attr('stroke', d => d.isActive ? '#6366f1' : '#64748b')
+      .attr('stroke-width', d => d.isActive ? 4 : 2)
+      .attr('marker-end', d => d.isSelfLoop ? '' : (d.isActive ? 'url(#arrow-active)' : 'url(#arrow)'));
+
+  }, [currentStep, testResult]);
 
   return (
     <div className="space-y-6">
@@ -257,8 +352,11 @@ export const StringTester = () =>
         <CardContent>
           <form onSubmit={handleTest} className="space-y-4">
             <div>
-              <Input value={inputString} placeholder="Enter a string to test" className="font-mono"
+              <Input
+                value={inputString}
                 onChange={(e) => setInputString(e.target.value)}
+                placeholder="Enter a string to test"
+                className="font-mono"
               />
               <p className="mt-2 text-sm text-slate-600">
                 <strong>Alphabet:</strong> {minimizedDFA.alphabet.join(', ')}
@@ -266,9 +364,9 @@ export const StringTester = () =>
             </div>
 
             <div className="flex gap-3">
-              <Button type="submit" variant="primary"> Test String </Button>
+              <Button type="submit" variant="primary">Test String</Button>
               {testResult && (
-                <Button type="button" variant="outline" onClick={handleReset}> Reset </Button>
+                <Button type="button" variant="outline" onClick={handleReset}>Reset</Button>
               )}
             </div>
           </form>
@@ -278,7 +376,10 @@ export const StringTester = () =>
       {/* Test Result */}
       <AnimatePresence>
         {testResult && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
           >
             <Card>
               <CardHeader>
@@ -286,12 +387,13 @@ export const StringTester = () =>
               </CardHeader>
               <CardContent>
                 {/* Result Status */}
-                <div className={`p-6 rounded-lg mb-6 ${testResult.error
-                    ? 'bg-red-50 border-2 border-red-200'
-                    : testResult.accepted
-                      ? 'bg-green-50 border-2 border-green-200'
-                      : 'bg-red-50 border-2 border-red-200'
-                  }`}>
+                <div className={`p-6 rounded-lg mb-6 ${
+                  testResult.error 
+                    ? 'bg-red-50 border-2 border-red-200' 
+                    : testResult.accepted 
+                    ? 'bg-green-50 border-2 border-green-200'
+                    : 'bg-red-50 border-2 border-red-200'
+                }`}>
                   <div className="flex items-center gap-4">
                     {testResult.error ? (
                       <AlertCircle className="w-12 h-12 text-red-600" />
@@ -300,30 +402,32 @@ export const StringTester = () =>
                     ) : (
                       <XCircle className="w-12 h-12 text-red-600" />
                     )}
-
+                    
                     <div className="flex-1">
-                      <h3 className={`text-2xl font-bold mb-1 ${testResult.error
-                          ? 'text-red-900'
-                          : testResult.accepted
-                            ? 'text-green-900'
-                            : 'text-red-900'
-                        }`}>
-                        {testResult.error
-                          ? 'Invalid Input'
-                          : testResult.accepted
-                            ? 'String Accepted '
-                            : 'String Rejected'
+                      <h3 className={`text-2xl font-bold mb-1 ${
+                        testResult.error 
+                          ? 'text-red-900' 
+                          : testResult.accepted 
+                          ? 'text-green-900'
+                          : 'text-red-900'
+                      }`}>
+                        {testResult.error 
+                          ? 'Invalid Input' 
+                          : testResult.accepted 
+                          ? 'String Accepted'
+                          : 'String Rejected'
                         }
                       </h3>
-                      <p className={`text-lg ${testResult.error
-                          ? 'text-red-700'
-                          : testResult.accepted
-                            ? 'text-green-700'
-                            : 'text-red-700'
-                        }`}>
-                        {testResult.error || (testResult.accepted
-                          ? `The string "${inputString || 'ε'}" is accepted by the automaton`
-                          : `The string "${inputString || 'ε'}" is rejected by the automaton`
+                      <p className={`text-lg ${
+                        testResult.error 
+                          ? 'text-red-700' 
+                          : testResult.accepted 
+                          ? 'text-green-700'
+                          : 'text-red-700'
+                      }`}>
+                        {testResult.error || (testResult.accepted 
+                          ? `The string "${inputString || 'ε'}" is accepted`
+                          : `The string "${inputString || 'ε'}" is rejected`
                         )}
                       </p>
                     </div>
@@ -334,38 +438,39 @@ export const StringTester = () =>
                 {testResult.steps && testResult.steps.length > 0 && (
                   <div className="mt-6">
                     <div className="flex items-center justify-between mb-4">
-                      <h4 className="font-semibold text-slate-900">
-                        Step-by-Step Simulation:
-                      </h4>
+                      <h4 className="font-semibold text-slate-900">Step-by-Step Simulation:</h4>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-slate-600">
-                          Step {currentStep + 1} of {testResult.steps.length}
+                        <span className="text-sm font-semibold text-slate-600 ml-2">
+                          Step {currentStep + 1} / {testResult.steps.length}
                         </span>
                         <Button
-                          variant="outline" size="sm"
+                          variant="outline"
+                          size="sm"
                           onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
                           disabled={currentStep === 0}
                         >
                           <ChevronLeft className="w-4 h-4" />
-                          Previous
                         </Button>
                         <Button
-                          variant="outline" size="sm"
+                          variant="outline"
+                          size="sm"
                           onClick={() => setCurrentStep(Math.min(testResult.steps.length - 1, currentStep + 1))}
                           disabled={currentStep === testResult.steps.length - 1}
                         >
-                          Next
                           <ChevronRight className="w-4 h-4" />
                         </Button>
                       </div>
                     </div>
 
-                    {/* Graph Visualization */}
-                    <div
+                    {/* Graph */}
+                    <div 
                       ref={containerRef}
                       className="w-full bg-slate-50 rounded-lg border-2 border-slate-200 mb-4"
                     >
-                      <svg ref={svgRef} style={{ width: '100%', height: '400px' }}></svg>
+                      <svg 
+                        ref={svgRef} 
+                        style={{ width: '100%', height: '400px', cursor: 'grab' }}
+                      ></svg>
                     </div>
 
                     {/* Current Step Info */}
@@ -374,10 +479,7 @@ export const StringTester = () =>
                         <div>
                           <div className="text-xs text-indigo-600 font-semibold mb-1">READING</div>
                           <div className="text-2xl font-bold text-indigo-900">
-                            {testResult.steps[currentStep].symbol === 'Start'
-                              ? '—'
-                              : testResult.steps[currentStep].symbol
-                            }
+                            {testResult.steps[currentStep].symbol === 'Start' ? '—' : testResult.steps[currentStep].symbol}
                           </div>
                         </div>
                         <div>
@@ -395,17 +497,18 @@ export const StringTester = () =>
                       </div>
                     </div>
 
-                    {/* All Steps Timeline */}
+                    {/* Timeline */}
                     <div className="overflow-x-auto pb-4">
                       <div className="flex items-center gap-2 min-w-max">
                         {testResult.steps.map((step, index) => (
                           <React.Fragment key={index}>
                             <button
                               onClick={() => setCurrentStep(index)}
-                              className={`px-4 py-3 rounded-lg font-semibold transition-all ${index === currentStep
+                              className={`px-4 py-3 rounded-lg font-semibold transition-all ${
+                                index === currentStep
                                   ? 'bg-indigo-600 text-white shadow-lg scale-110'
                                   : 'bg-white text-slate-700 border-2 border-slate-200 hover:border-indigo-400'
-                                }`}
+                              }`}
                             >
                               <div className="text-xs mb-1">
                                 {step.symbol === 'Start' ? 'Start' : step.symbol}
@@ -427,18 +530,20 @@ export const StringTester = () =>
         )}
       </AnimatePresence>
 
+      {/* Examples */}
       <Card>
         <CardHeader>
-          <CardTitle>Try These Examples</CardTitle>
+          <CardTitle>Try Examples</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2">
-            {['npn', 'npoo', 'oop', 'np', 'ooppp', 'pppp', ''].map((example) => (
+            {['npn', 'npoo', 'oop', 'np', 'ooppp', 'pppp', ''].map((ex) => (
               <button
-                key={example || 'empty'} onClick={() => setInputString(example)}
+                key={ex || 'empty'}
+                onClick={() => setInputString(ex)}
                 className="px-4 py-2 bg-slate-100 rounded-lg text-sm font-mono text-slate-700 hover:bg-indigo-100 hover:text-indigo-700 transition-colors"
               >
-                {example || 'ε (empty)'}
+                {ex || 'ε'}
               </button>
             ))}
           </div>

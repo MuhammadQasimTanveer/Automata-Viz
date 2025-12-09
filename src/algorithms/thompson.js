@@ -40,14 +40,14 @@ function addConcatenation(tokens) {
       const next = tokens[i + 1];
 
       const shouldConcatenate =
-        (current.type === 'symbol' && next.type === 'symbol') ||
-        (current.type === 'symbol' && next.value === '(') ||
-        (current.value === ')' && next.type === 'symbol') ||
-        (current.value === ')' && next.value === '(') ||
-        (current.value === '*' && next.type === 'symbol') ||
-        (current.value === '?' && next.type === 'symbol') ||
-        (current.value === '*' && next.value === '(') ||
-        (current.value === '?' && next.value === '(');
+        (current.type === 'symbol' && next.type === 'symbol') ||     //a b
+        (current.type === 'symbol' && next.value === '(') ||         //a (b|c)
+        (current.value === ')' && next.type === 'symbol') ||        //(a|b)
+        (current.value === ')' && next.value === '(') ||            //(a|b) (c|d)
+        (current.value === '*' && next.type === 'symbol') ||        //a* b
+        (current.value === '?' && next.type === 'symbol') ||        //a? b
+        (current.value === '*' && next.value === '(') ||            //a* (bc)
+        (current.value === '?' && next.value === '(');              //a? (bc)
 
       if (shouldConcatenate) {
         result.push({ type: 'operator', value: '.' });
@@ -59,9 +59,9 @@ function addConcatenation(tokens) {
 
 // Convert infix to postfix
 function infixToPostfix(tokens) {
-  const precedence = { '|': 1, '.': 2, '*': 3, '?': 3 };
-  const output = [];
-  const stack = [];
+  const precedence =  { '|': 1, '.': 2, '*': 3, '?': 3 };
+  const output = [];     //final postfix
+  const stack = [];   //temporarily  oparators array
 
   for (const token of tokens) {
     if (token.type === 'symbol') {
@@ -236,7 +236,7 @@ export function buildNFAFromRegex(regex) {
   const postfix = infixToPostfix(withConcat);
   const nfa = buildNFAFromPostfix(postfix);
   
-  // *** KEY FIX: Renumber states so start is always q0 ***
+  //start state is always q0 ***
   const renumberedNFA = renumberStates(nfa);
 
   const transitionsObj = {};

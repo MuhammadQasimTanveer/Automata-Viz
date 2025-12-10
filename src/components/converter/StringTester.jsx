@@ -234,7 +234,6 @@ export const StringTester = () => {
         }
       });
 
-      //decide which link is self or normal
       linkLabels.attr('transform', d => {
         const x = d.isSelfLoop ? d.source.x + 20 : (d.source.x + d.target.x) / 2;
         const y = d.isSelfLoop ? d.source.y - 45 : (d.source.y + d.target.y) / 2;

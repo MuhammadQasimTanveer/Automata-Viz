@@ -215,7 +215,6 @@ export const StateGraph = ({ automaton, title }) => {
         }
       });
 
-       //decide which link is self or normal
       linkLabels.attr('transform', d => {
         const x = d.isSelfLoop ? d.source.x + 25 : (d.source.x + d.target.x) / 2;
         const y = d.isSelfLoop ? d.source.y - 50 : (d.source.y + d.target.y) / 2;
@@ -236,21 +235,23 @@ export const StateGraph = ({ automaton, title }) => {
       node.attr('transform', d => `translate(${d.x},${d.y})`);
     });
 
+    // Drag functions - nodes stay fixed after drag
     function dragstarted(event, d) {
       if (!event.active) simulation.alphaTarget(0.3).restart();
-      d.fx = d.x;
-      d.fy = d.y;
+      d.fx = d.x;  //fix x position
+      d.fy = d.y;  //fix y position
     }
 
     function dragged(event, d) {
-      d.fx = event.x;
-      d.fy = event.y;
+      d.fx = event.x;  //update fixed x position
+      d.fy = event.y;  //update fixed y position
     }
 
     function dragended(event, d) {
       if (!event.active) simulation.alphaTarget(0);
-      d.fx = null;
-      d.fy = null;
+      // Keep position fixed after drag - node won't float back
+      d.fx = d.x;
+      d.fy = d.y;
     }
 
     // window.graphZoomIn = () => svg.transition().call(zoom.scaleBy, 1.3);
@@ -258,7 +259,7 @@ export const StateGraph = ({ automaton, title }) => {
     // window.graphZoomReset = () => svg.transition().call(zoom.transform, d3.zoomIdentity);
 
     return () => {
-      simulation.stop();
+      simulation.stop();  //stop simulation on cleanup
     };
 }, [automaton]);
 

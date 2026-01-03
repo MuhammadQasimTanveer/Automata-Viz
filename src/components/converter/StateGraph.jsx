@@ -254,9 +254,9 @@ export const StateGraph = ({ automaton, title }) => {
       d.fy = d.y;
     }
 
-    // window.graphZoomIn = () => svg.transition().call(zoom.scaleBy, 1.3);
-    // window.graphZoomOut = () => svg.transition().call(zoom.scaleBy, 0.7);
-    // window.graphZoomReset = () => svg.transition().call(zoom.transform, d3.zoomIdentity);
+    window.graphZoomIn = () => svg.transition().call(zoom.scaleBy, 1.3);
+    window.graphZoomOut = () => svg.transition().call(zoom.scaleBy, 0.7);
+    window.graphZoomReset = () => svg.transition().call(zoom.transform, d3.zoomIdentity);
 
     return () => {
       simulation.stop();  //stop simulation on cleanup
@@ -274,7 +274,7 @@ export const StateGraph = ({ automaton, title }) => {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>{title || 'State Diagram'}</CardTitle>
-            {/* <div className="flex gap-2">
+            <div className="flex gap-2">
               <button
                 onClick={() => window.graphZoomIn?.()}
                 className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors"
@@ -296,7 +296,7 @@ export const StateGraph = ({ automaton, title }) => {
               >
                 <Maximize2 className="w-4 h-4" />
               </button>
-            </div> */}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -331,10 +331,6 @@ export const StateGraph = ({ automaton, title }) => {
               <span className="text-slate-700">Dead State</span>
             </div>
           </div>
-{/* 
-          <div className="mt-4 text-center text-sm text-slate-600">
-            <span className="font-semibold">{automaton.states.length}</span> states • <span className="font-semibold">{Object.keys(automaton.transitions).reduce((acc, state) => acc + Object.keys(automaton.transitions[state]).length, 0)}</span> transitions
-          </div> */}
         </CardContent>
       </Card>
     </motion.div>

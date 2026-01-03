@@ -8,7 +8,7 @@ import useAutomataStore from '../../store/useAutomataStore';
 export const RegexInput = () => {
   const { regex, setRegex, validationError, isValid,validateRegex, processRegex, isProcessing } = useAutomataStore();
 
-  const [localRegex, setLocalRegex] = useState(" npn + oo(pp+p+ppp)* + np");
+  const [localRegex, setLocalRegex] = useState(regex);
   const [showValidation, setShowValidation] = useState(false);
 
   useEffect(() => {
@@ -39,7 +39,7 @@ export const RegexInput = () => {
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 rounded-full mb-4">
             <Sparkles className="w-4 h-4 text-indigo-600" />
-            <span className="text-sm font-semibold text-indigo-600"> Group 2 Regex </span>
+            <span className="text-sm font-semibold text-indigo-600"> Enter Regex </span>
           </div>
           <h2 className="text-3xl font-bold mb-2">Regex to Automata Converter</h2>
           <p className="text-slate-600">
@@ -64,8 +64,8 @@ export const RegexInput = () => {
                   exit={{ opacity: 0, scale: 0.8 }}
                   className="absolute right-4 top-1/2 -translate-y-1/2"
                 >
-                  {/* {isValid ? ( <CheckCircle className="w-6 h-6 text-green-500" />) 
-                  : ( <XCircle className="w-6 h-6 text-red-500" /> )} */}
+                  {isValid ? ( <CheckCircle className="w-6 h-6 text-green-500" />) 
+                  : (null)}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -80,11 +80,11 @@ export const RegexInput = () => {
           </Button>
         </form>
 
-        {/* <div className="mt-6 text-center text-sm text-slate-500">
+        <div className="mt-6 text-center text-sm text-slate-500">
           <p>  Regular expressions consist of symbols and operators. <br />
             Use parentheses for grouping and operators for repetition.
           </p>
-        </div> */}
+        </div>
       </motion.div>
     </div>
   );
